@@ -101,7 +101,7 @@ DELETE FROM tren WHERE id = 1;
 
 SELECT * FROM tren;
 
-# Encriptar un texto
+-- Encriptar un texto
 
 SELECT sha256('abc');
 ```
@@ -145,31 +145,31 @@ Especiales:
 | nombre     |
 | dirección  |
 
-| trenes    |
+| Trenes    |
 | --------- |
 | id        |
 | modelo    |
 | capacidad |
 
-| pasarejos   |
-| ----------- |
-| id          |
-| nombre      |
-| dirección   |
-| fecha_viaje |
+| Pasarejos        |
+| ---------------- |
+| id               |
+| nombre           |
+| dirección        |
+| fecha_nacimiento |
 
-| trayectos   |
+| Trayectos   |
 | ----------- |
 | id          |
 | id_estación |
 | id_tren     |
 | nombre      |
 
-| viajes      |
+| Viajes      |
 | ----------- |
 | id          |
 | id_pasajero |
-| id_tryaecto |
+| id_trayecto |
 | inicio      |
 | fin         |
 
@@ -181,3 +181,208 @@ Especiales:
 ### Jerarquía de Bases de Datos
 
 [Artículo en Platzi](https://platzi.com/clases/1480-postgresql/24848-jerarquia-de-bases-de-datos/)
+
+## Gestión de la información en bases de datos
+
+### Creación de tablas
+
+Acciones:
+
+- Create -> Crear tabla
+- Alter -> Modificar tabla
+- Drop -> Eliminar tabla
+
+Creando tabla Pasajeros:
+
+```sql
+CREATE TABLE IF NOT EXISTS public."Pasajeros"
+(
+    id serial NOT NULL,
+    nombre character varying(100) NOT NULL,
+    direccion_residencia character varying NOT NULL,
+    fecha_nacimiento date NOT NULL,
+    CONSTRAINT pasajero_pkey PRIMARY KEY (id)
+);
+
+ALTER TABLE public."Pasajeros"
+    OWNER to postgres;
+
+------------------------------------
+
+INSERT INTO public."Pasajeros"(
+  nombre, direccion_residencia, fecha_nacimiento)
+  VALUES ('Pasajero 1', 'Dirección 1', '2021-08-17'); -- Formato AAAA-MM-DD
+```
+
+Creando tabla Estaciones:
+
+```sql
+CREATE TABLE IF NOT EXISTS public."Estaciones"
+(
+    id serial NOT NULL,
+    nombre character varying NOT NULL,
+    direccion character varying NOT NULL,
+    CONSTRAINT estacion_pkey PRIMARY KEY (id)
+);
+
+ALTER TABLE public."Estaciones"
+    OWNER to postgres;
+
+--------------------------------------
+
+INSERT INTO public."Estaciones"(
+  nombre, direccion)
+  VALUES ('Estación 1', 'Dirección 1');
+```
+
+Creando tabla de Trenes:
+
+```sql
+CREATE TABLE IF NOT EXISTS public."Trenes"
+(
+    id serial NOT NULL,
+    modelo integer NOT NULL,
+    capacidad integer NOT NULL,
+    CONSTRAINT tren_pkey PRIMARY KEY (id)
+);
+
+ALTER TABLE public."Trenes"
+    OWNER to postgres;
+
+--------------------------------------
+
+INSERT INTO public."Trenes"(
+  modelo, capacidad)
+  VALUES (2020, 100);
+```
+
+Creando tablas de Trayectos:
+
+```sql
+CREATE TABLE IF NOT EXISTS public."Trayectos"
+(
+    id serial NOT NULL,
+    id_estacion serial NOT NULL,
+    id_tren serial NOT NULL,
+    nombre character varying NOT NULL,
+    CONSTRAINT trayecto_pkey PRIMARY KEY (id),
+    CONSTRAINT estacion_fkey FOREIGN KEY (id_estacion)
+        REFERENCES public."Estaciones" (id) MATCH SIMPLE
+        ON UPDATE CASCADE
+        ON DELETE CASCADE
+        NOT VALID,
+    CONSTRAINT tren_fkey FOREIGN KEY (id_tren)
+        REFERENCES public."Trenes" (id) MATCH SIMPLE
+        ON UPDATE CASCADE
+        ON DELETE CASCADE
+        NOT VALID
+);
+
+ALTER TABLE public."Trayectos"
+    OWNER to postgres;
+
+----------------------------------
+
+INSERT INTO public."Trayectos"(
+  id_estacion, id_tren, nombre)
+  VALUES (1, 1, 'Trayecto 1');
+```
+
+Creando tabla de Viajes:
+
+```sql
+CREATE TABLE IF NOT EXISTS public."Viajes"
+(
+    id serial NOT NULL,
+    id_pasajero serial NOT NULL,
+    id_trayecto serial NOT NULL,
+    inicio date NOT NULL,
+    fin date NOT NULL,
+    CONSTRAINT viaje_pkey PRIMARY KEY (id),
+    CONSTRAINT pasajero_fkey FOREIGN KEY (id_pasajero)
+        REFERENCES public."Pasajeros" (id) MATCH SIMPLE
+        ON UPDATE CASCADE
+        ON DELETE CASCADE
+        NOT VALID,
+    CONSTRAINT trayecto_fkey FOREIGN KEY (id_trayecto)
+        REFERENCES public."Trayectos" (id) MATCH SIMPLE
+        ON UPDATE CASCADE
+        ON DELETE CASCADE
+        NOT VALID
+);
+
+ALTER TABLE public."Viajes"
+    OWNER to postgres;
+
+----------------------------------
+
+INSERT INTO public."Viajes"(
+  id_pasajero, id_trayecto, inicio, fin)
+  VALUES (1, 1, '2019-10-31', '2019-11-02');
+```
+
+### Particiones
+
+Las particiones son útiles cuando tenemos mucha información guardada en una tabla.
+
+Las particiones hacen:
+
+- Seperación física de datos -> Guardar partes de la tabla en diferentes espacios del disco
+- Estructura lógica -> Se conserva la misma estructura
+
+### Creación de Roles
+
+Los roles sirven para dar priviligios a un usuario en una base de datos. Por defecto el rol que tienen las tablas asignadas es el rol de "posgres", el cual tiene acceso total a todas las acciones. Es peligroso seguir usando este rol porque se podría borrar toda la base de datos.
+
+- Crear rol o usuario (es lo mismo): `CREATE ROLE nombre_rol` / `CREATE USER nombre_usuario`
+- Listado de usuarios: `\dg`
+
+Le damos acceso a conectarse: `ALTER ROLE usuario_consulta WITH LOGIN`;
+
+Le damos el privilegio de super usuario: `ALTER ROLE usuario_consulta WITH SUPERUSER;`
+
+Le asignamos una contraseña `ALTER ROLE usuario_consulta WITH PASSWORD 'etc123'` **No usar una contraseña como la de prueba en un entorno real, es solo una prueba**
+
+- Eliminar rol: `DROP ROLE nombre_rol`
+
+```sql
+CREATE ROLE usuario_consulta WITH
+  LOGIN
+  NOSUPERUSER
+  NOCREATEDB
+  NOCREATEROLE
+  INHERIT
+  NOREPLICATION
+  CONNECTION LIMIT -1
+  PASSWORD 'xxxxxx'; --contraseña oculta
+COMMENT ON ROLE usuario_consulta IS 'Este usuario solo podrá consultar datos';
+```
+
+Modificando persmisos en tablas para un rol:
+
+```sql
+GRANT INSERT, SELECT, UPDATE ON TABLE public."Estaciones" TO usuario_consulta;
+
+GRANT INSERT, SELECT, UPDATE ON TABLE public."Pasajeros" TO usuario_consulta;
+
+GRANT INSERT, SELECT, UPDATE ON TABLE public."Trayectos" TO usuario_consulta;
+
+GRANT INSERT, SELECT, UPDATE ON TABLE public."Trenes" TO usuario_consulta;
+
+GRANT INSERT, SELECT, UPDATE ON TABLE public."Viajes" TO usuario_consulta;
+
+```
+
+### Llaves foráneas
+
+Las FK tienen una tabla de origen, una tabla de destino y una serie de acciones. Permiten que haya relación entre las tablas.
+
+Es muy importante seleccionar la pestaña "Action" para que indique si debe hacer algo o no cuando se hacen cambio o eliminaciones en la tabla de referencia.
+
+### Inserción y consulta de datos
+
+### Inserción masiva de datos
+
+[Mokaroo](https://mockaroo.com/) es una página para crear datos de prueba.
+
+También existe [Generate Data](https://www.generatedata.com/).
