@@ -386,3 +386,352 @@ Es muy importante seleccionar la pestaña "Action" para que indique si debe hace
 [Mokaroo](https://mockaroo.com/) es una página para crear datos de prueba.
 
 También existe [Generate Data](https://www.generatedata.com/).
+
+## Generar consultas avanzadas
+
+### Cruzar tablas: SQL JOIN
+
+[SQL Joins](https://upload.wikimedia.org/wikipedia/commons/c/c9/Joins_del_SQL.svg)
+
+```sql
+-- Pasajeros que viajaron
+SELECT * FROM "Pasajeros"
+JOIN "Viajes" ON ("Viajes".id_pasajero = "Pasajeros".id);
+
+--Pasajeros que no han viajado
+SELECT * FROM "Pasajeros"
+LEFT JOIN "Viajes" ON ("Viajes".id_pasajero = "Pasajeros".id)
+WHERE "Viajes".id IS NULL;
+```
+
+```sql
+SELECT * FROM "Trenes"
+JOIN "Trayectos" ON ("Trenes".id = "Trayectos".id_tren);
+```
+
+### Funciones Especiales Principales
+
+- On conflict do -> Nos ayuda a resolver problemas cuando queremos insertar o modificar datos en una tabla
+- returning -> Devuelve los resultados de una sentencia
+- like / ilike -> Es como una expresión regular
+- is / is not -> Nos permite comparar 2 tipos de datos que no sean estándar
+
+Intentar insertar un valor donde ya existe un ID:
+
+```sql
+INSERT INTO public."Pasajeros"(
+  id, nombre, direccion_residencia, fecha_nacimiento)
+  VALUES (1, 'Miguel', 'Algun lado', '1998-10-22')
+  ON CONFLICT(id) DO UPDATE SET nombre = 'Miguel', direccion_residencia='Algun lado', fecha_nacimiento='1998-10-22';
+```
+
+Ver qué información acabamos de insertar:
+
+```sql
+INSERT INTO public."Pasajeros"(
+  nombre, direccion_residencia, fecha_nacimiento)
+  VALUES ('Ximena', 'Por ahí', '1999-11-15')
+RETURNING id, nombre, direccion_residencia, fecha_nacimiento;
+```
+
+```sql
+SELECT nombre
+  FROM public."Pasajeros"
+  WHERE nombre ILIKE 'x%';
+
+-- `%` -> cualquier caracter
+-- LIKE case sensitive
+-- ILIKE case insensitive
+```
+
+### Funciones especiales avanzadas
+
+- coalesce -> Te permite comparar 2 valores y regresar el que no es nulo
+- nullif -> Te permite comparar 2 valores y regresa null si son iguales
+- greatest -> Compara un array de valores y regresa el mayor
+- least -> Compara un array de valores y regresa el menor
+- bloques anónimos -> condicionales dentro de consultas
+
+```sql
+SELECT NULLIF(0,0); -- null
+
+SELECT GREATEST(0,1,2,3,4,5,6,7,8,9); -- 9
+
+SELECT LEAST(0,1,2,3,4,5,6,7,8,9); -- 0
+
+------
+
+SELECT id, nombre, direccion_residencia, fecha_nacimiento,
+  CASE
+  WHEN fecha_nacimiento > '1990-01-01'
+  THEN
+  'Infante'
+  ELSE
+  'Mayor de edad'
+  END
+  FROM public."Pasajeros";
+```
+
+Selecciona personas mayores de cierta edad y que su nombre empiece con 'm|M':
+
+```sql
+SELECT id, nombre, fecha_nacimiento,
+  CASE
+  WHEN fecha_nacimiento < '1990-01-01'
+  THEN
+  'Mayor de edad'
+  ELSE
+  'Infante'
+  END
+  FROM public."Pasajeros"
+  WHERE nombre ILIKE 'm%';
+```
+
+### Vistas
+
+Las vistas se usan para no repetir la misma consulta muchas veces. Nos ayuda a centralizar todos los esfuerzos en una sola función y con un solo nombre.
+
+- Vista volátil -> Se actualiza al mismo tiempo que la base de datos.
+- Vista materializada -> persistente. Tendrá datos antiguos aunque hayan sido borrados. Tenemos que actualizarla para que tenga datos nuevos si así lo queremos.
+
+Creando una vista:
+
+```sql
+CREATE OR REPLACE VIEW public.viajeros_mayores_de_1990_empieza_m
+ AS
+SELECT id, nombre, fecha_nacimiento,
+  CASE
+  WHEN fecha_nacimiento < '1990-01-01'
+  THEN
+  'Mayor de edad'
+  ELSE
+  'Infante'
+  END
+  FROM public."Pasajeros"
+  WHERE nombre ILIKE 'm%';
+
+ALTER TABLE public.viajeros_mayores_de_1990_empieza_m
+    OWNER TO postgres;
+COMMENT ON VIEW public.viajeros_mayores_de_1990_empieza_m
+    IS 'Consultamos a los viajeros que hayan nacido antes del 1990-01-01 y que su nombre empiece con ''m'' o ''M''.';
+```
+
+Y para usarla, simplemente hacemos `SELECT * FROM viajeros_mayores_de_1990_empieza_m;`.
+
+Creando una vista materializada:
+
+```sql
+CREATE MATERIALIZED VIEW public.viajes_despues_1989
+AS
+SELECT * FROM "Viajes" WHERE inicio > '1989-12-31'
+WITH NO DATA;
+
+ALTER TABLE public.viajes_despues_1989
+    OWNER TO postgres;
+
+COMMENT ON MATERIALIZED VIEW public.viajes_despues_1989
+    IS 'Selecciona los viajes que se hicieron después de 1989-12-31';
+```
+
+Y la usamos con `SELECT * FROM viajes_despues_1989;`
+
+### PL/SQL
+
+Procedural Language o Procedimientos almacenados.
+
+Estructura básica:
+
+```sql
+[<<label>>]
+[ DECLARE
+  declarations]
+BEGIN
+  statements
+END [ label ];
+```
+
+Ejemplo muy sencillo en consola, pestaña de Messages:
+
+```sql
+DO $$
+BEGIN
+  RAISE NOTICE 'ALGO ESTÁ PASANDO';
+END
+$$
+```
+
+Bucle for en PostgreSQL:
+
+```sql
+DO $$
+DECLARE
+  rec record := NULL; -- nombre tipo_de_dato := asignación
+BEGIN
+  FOR rec IN SELECT * FROM "Pasajeros" LOOP
+  RAISE NOTICE 'Un pasajero se llama %', rec.nombre;
+  END LOOP;
+  -- Usamos '&' porque es donde irá la variable
+END
+$$
+```
+
+Añadiendo un contador
+
+```sql
+DO $$
+DECLARE
+  rec record := NULL; -- nombre tipo_de_dato := asignación
+  contador integer := 0;
+BEGIN
+  FOR rec IN SELECT * FROM "Pasajeros" LOOP
+  RAISE NOTICE 'Un pasajero se llama %', rec.nombre;
+  contador := contador + 1;
+  END LOOP;
+  -- Usamos '&' porque es donde irá la variable
+  RAISE NOTICE 'Total de pasajeros: %', contador;
+END
+$$
+```
+
+Convertimos el código en una función:
+
+```sql
+CREATE FUNCTION contar_pasajeros()
+RETURNS void
+AS $$
+DECLARE
+  rec record := NULL; -- nombre tipo_de_dato := asignación
+  contador integer := 0;
+BEGIN
+  FOR rec IN SELECT * FROM "Pasajeros" LOOP
+  RAISE NOTICE 'Un pasajero se llama %', rec.nombre;
+  contador := contador + 1;
+  END LOOP;
+  -- Usamos '&' porque es donde irá la variable
+  RAISE NOTICE 'Total de pasajeros: %', contador;
+END
+$$
+LANGUAGE PLPGSQL;
+```
+
+Lo mandamos a llamar `SELECT contar_pasajeros();` y en Messages estará la información.
+
+Borramos la función: `DROP FUNCTION contar_pasajeros();`
+
+La creamos de nuevo con un return integer:
+
+```sql
+CREATE OR REPLACE FUNCTION contar_pasajeros()
+RETURNS integer
+AS $$
+DECLARE
+  rec record := NULL; -- nombre tipo_de_dato := asignación
+  contador integer := 0;
+BEGIN
+  FOR rec IN SELECT * FROM "Pasajeros" LOOP
+  RAISE NOTICE 'Un pasajero se llama %', rec.nombre;
+  contador := contador + 1;
+  END LOOP;
+  -- Usamos '&' porque es donde irá la variable
+  RAISE NOTICE 'Total de pasajeros: %', contador;
+  RETURN contador;
+END
+$$
+LANGUAGE PLPGSQL;
+
+SELECT contar_pasajeros();
+```
+
+### Triggers
+
+También conocidos como "Disparadores". Se ejecutan dependiendo de ciertas acciones, las cualesn pueden ser Insert, Update o Delete.
+
+Creamos una tabla:
+
+```sql
+CREATE TABLE IF NOT EXISTS public."Conteo_pasajeros"
+(
+    id serial NOT NULL,
+    "Total" integer NOT NULL,
+    "Tiempo" time with time zone NOT NULL,
+    PRIMARY KEY (id)
+);
+
+ALTER TABLE public."Conteo_pasajeros"
+    OWNER to postgres;
+```
+
+Modificamos la función que habíamos creado:
+
+```sql
+CREATE OR REPLACE FUNCTION public.contar_pasajeros()
+    RETURNS integer
+    LANGUAGE 'plpgsql'
+    COST 100
+    VOLATILE PARALLEL UNSAFE
+AS $BODY$
+DECLARE
+  rec record := NULL;
+  contador integer := 0;
+BEGIN
+  FOR rec IN SELECT * FROM "Pasajeros" LOOP
+  RAISE NOTICE 'Un pasajero se llama %', rec.nombre;
+  contador := contador + 1;
+  END LOOP;
+  INSERT INTO "Conteo_pasajeros" ("Total", "Tiempo")
+  VALUES (contador, now());
+  RETURN contador;
+END
+$BODY$;
+
+ALTER FUNCTION public.contar_pasajeros()
+    OWNER TO postgres;
+
+COMMENT ON FUNCTION public.contar_pasajeros()
+    IS 'Contará los pasajeros totales, además de traer sus nombres.';
+
+```
+
+Eliminamos la función `DROP FUNCTION public.contar_pasajeros();`
+
+La volvemos a crear con algunas modificaciones:
+
+```sql
+CREATE OR REPLACE FUNCTION public.contar_pasajeros()
+    RETURNS TRIGGER
+    LANGUAGE 'plpgsql'
+    COST 100
+    VOLATILE PARALLEL UNSAFE
+AS $BODY$
+DECLARE
+  rec record := NULL;
+  contador integer := 0;
+BEGIN
+  FOR rec IN SELECT * FROM "Pasajeros" LOOP
+  contador := contador + 1;
+  END LOOP;
+  INSERT INTO "Conteo_pasajeros" ("Total", "Tiempo")
+  VALUES (contador, now());
+  RETURN NEW;
+END
+$BODY$;
+```
+
+Creamos un trigger:
+
+```sql
+CREATE TRIGGER miTrigger
+AFTER INSERT ON "Pasajeros"
+FOR EACH ROW
+EXECUTE PROCEDURE contar_pasajeros();
+```
+
+Creamos otro trigger:
+
+```sql
+CREATE TRIGGER contar_menos_pasajeros
+    AFTER DELETE
+    ON public."Pasajeros"
+    FOR EACH ROW
+    EXECUTE FUNCTION public.contar_pasajeros();
+```
