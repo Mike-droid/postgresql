@@ -735,3 +735,42 @@ CREATE TRIGGER contar_menos_pasajeros
     FOR EACH ROW
     EXECUTE FUNCTION public.contar_pasajeros();
 ```
+
+## Integrar bases de datos con servicios externos
+
+### Simulando una conexión a Bases de Datos remotas
+
+Postgresql te permite conectarte a servidores remotos con 'dblink'.
+
+Creamos una nueva BD llamada 'remota' y simplemente creamos una tabla "VIP" donde decimos que el ID 50 es VIP desde 2010-01-01.
+
+Así quería el script para conectarnos pero no funciona xd:
+
+```sql
+--CREATE EXTENSION dblink; --Hay que ejecutarlo antes
+
+SELECT * FROM
+dblink('dbname=remota 
+  port=5432 
+  host=127.0.0.1 
+  user=postgres
+  password=contraseña chida', --Al parecer marca error por tener un espacio en la contraseña ????
+  'SELECT * FROM "VIP"')
+  AS datos_remotos (id integer, fecha date);
+```
+
+### Transacciones
+
+Son procesos complejos seguros. Tenemos una serie de pasos a seguir, si todos se cumplen, la transacción se ejecuta, pero si no, se deben de devolver todos los cambios.
+
+```sql
+BEGIN
+<consultas>
+COMMIT | ROLLBACK
+```
+
+### Otras Extensiones para Postgres
+
+Muchas extensions de Postgres vienen incluidas pero no están activas. [Documentación oficial para extensiones](https://www.postgresql.org/docs/13/contrib.html)
+
+Para los que trabajan en geología: [Earth distance](https://www.postgresql.org/docs/13/earthdistance.html)
