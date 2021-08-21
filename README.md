@@ -774,3 +774,41 @@ COMMIT | ROLLBACK
 Muchas extensions de Postgres vienen incluidas pero no están activas. [Documentación oficial para extensiones](https://www.postgresql.org/docs/13/contrib.html)
 
 Para los que trabajan en geología: [Earth distance](https://www.postgresql.org/docs/13/earthdistance.html)
+
+## Implementar mejores prácticas
+
+### Backups y restauración
+
+Formatos del backup:
+
+- Custom -> Un formato propio de Postgres
+- Tar -> Un archivo comprimido que contiene la estructura de la BD
+- Plain -> SQL plano
+- Directory -> Estructura sin comprimir
+
+### Mantenimiento
+
+Postgre de manera automática optimiza la BD. Puedes dar mantenimiento toda la BD o a una tabla específica.
+
+- Vacuum -> Vaciar
+- Analyze -> No hace cambios, solamente te indica cómo se encuentra la tabla o BD
+- Reindex -> Modifica las PK
+- Cluster -> Reorganiza la información en el disco
+
+No se recomienda hacer esto de forma manual, es mucho mejor hacerlo con la interfaz gráfica porque Postgres lo lleva optimizando desde hace años.
+
+### Introducción a réplicas
+
+Son mecanismos que nos evitan tener problemas de entrada y salida en los sistemas operativos.
+
+> Existen dos tipos de personas, los que ya usan réplicas y los que las van a usar...
+
+Piensa **siempre** en modo Réplica.
+
+La estrategia consiste tener tener una BD principal donde se hacen las modificaciones y una BD secundaria donde solo se hacen las lecturas.
+
+### Implementación de réplicas en Postgres
+
+Usamos [Cloud Jiffy](https://app.cloudjiffy.com/)
+
+### Otras buenas prácticas
